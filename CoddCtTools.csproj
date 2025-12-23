@@ -8,6 +8,7 @@
     <Nullable>enable</Nullable>
     <PlatformTarget>x64</PlatformTarget>
     <Platforms>x64</Platforms>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,6 +16,13 @@
     <Content Include="libs\CtApi\*.dll" Condition="Exists('libs\CtApi\CtApi.dll')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Excluir arquivos da pasta citect-main da compilação -->
+    <Compile Remove="citect-main\**" />
+    <EmbeddedResource Remove="citect-main\**" />
+    <None Remove="citect-main\**" />
   </ItemGroup>
 
 </Project>

@@ -24,9 +24,12 @@ namespace CoddCtTools
         private Label? lblStatus;
         private TextBox? txtTagSearch;
         private CancellationTokenSource? cancellationTokenSource;
+        private TagSimulator? tagSimulator;
+        private System.Timers.Timer? simulationWriteTimer;
 
         public MainForm()
         {
+            tagSimulator = new TagSimulator();
             InitializeComponent();
         }
 
@@ -240,13 +243,31 @@ namespace CoddCtTools
             };
 
             tagsGridView.Columns.Add("TagName", "Nome da Tag");
+            tagsGridView.Columns.Add("Description", "Descrição");
             tagsGridView.Columns.Add("Value", "Valor");
             tagsGridView.Columns.Add("Quality", "Qualidade");
             tagsGridView.Columns.Add("Timestamp", "Data/Hora");
-            tagsGridView.Columns["TagName"].FillWeight = 40;
-            tagsGridView.Columns["Value"].FillWeight = 20;
-            tagsGridView.Columns["Quality"].FillWeight = 20;
-            tagsGridView.Columns["Timestamp"].FillWeight = 20;
+            
+            // Adicionar coluna de botão Simulate
+            var simulateColumn = new DataGridViewButtonColumn
+            {
+                Name = "Simulate",
+                HeaderText = "Simular",
+                Text = "Simular",
+                UseColumnTextForButtonValue = true,
+                Width = 80
+            };
+            tagsGridView.Columns.Add(simulateColumn);
+            
+            tagsGridView.Columns["TagName"].FillWeight = 25;
+            tagsGridView.Columns["Description"].FillWeight = 25;
+            tagsGridView.Columns["Value"].FillWeight = 15;
+            tagsGridView.Columns["Quality"].FillWeight = 15;
+            tagsGridView.Columns["Timestamp"].FillWeight = 15;
+            tagsGridView.Columns["Simulate"].FillWeight = 5;
+            
+            // Handler para cliques em botões
+            tagsGridView.CellClick += TagsGridView_CellClick;
 
             // Adicionar menu de contexto (botão direito)
             var contextMenu = new ContextMenuStrip();
@@ -334,10 +355,10 @@ namespace CoddCtTools
                     btnConnect.Enabled = false;
                     btnDisconnect!.Enabled = true;
 
-                    // Carregar tags
-                    var tags = await Task.Run(() => connector.GetAllTags());
+                    // Carregar tags com informações (nome e descrição)
+                    var tagInfos = await Task.Run(() => connector.GetAllTagInfos());
 
-                    if (tags != null && tags.Count > 0)
+                    if (tagInfos != null && tagInfos.Count > 0)
                     {
                         // Limpar grid
                         tagsGridView!.Invoke((MethodInvoker)delegate
@@ -346,17 +367,20 @@ namespace CoddCtTools
                         });
 
                         // Adicionar tags ao grid
-                        foreach (var tagName in tags)
+                        foreach (var tagInfo in tagInfos)
                         {
                             tagsGridView!.Invoke((MethodInvoker)delegate
                             {
-                                tagsGridView.Rows.Add(tagName, "---", "---", "---");
+                                tagsGridView.Rows.Add(tagInfo.Name, tagInfo.Description ?? "", "---", "---", "---", "Simular");
                             });
                         }
 
-                        // Iniciar atualização em tempo real
-                        cancellationTokenSource = new CancellationTokenSource();
-                        StartRealTimeUpdates(cancellationTokenSource.Token);
+                    // Iniciar atualização em tempo real
+                    cancellationTokenSource = new CancellationTokenSource();
+                    StartRealTimeUpdates(cancellationTokenSource.Token);
+                    
+                    // Iniciar timer para escrever tags simuladas a cada 5 segundos
+                    StartSimulationWriteTimer();
                     }
                     else
                     {
@@ -408,9 +432,46 @@ namespace CoddCtTools
 
                                     if (row != null)
                                     {
-                                        row.Cells["Value"].Value = kvp.Value.Value?.ToString() ?? "---";
-                                        row.Cells["Quality"].Value = kvp.Value.Quality ?? "---";
-                                        row.Cells["Timestamp"].Value = kvp.Value.Timestamp?.ToString("yyyy-MM-dd HH:mm:ss.fff") ?? "---";
+                                        string tagName = kvp.Key;
+                                        
+                                        // Verificar se a tag está sendo simulada
+                                        if (tagSimulator != null && tagSimulator.IsSimulated(tagName))
+                                        {
+                                            // Usar valor simulado
+                                            try
+                                            {
+                                                double simulatedValue = tagSimulator.GenerateSimulatedValue(tagName);
+                                                row.Cells["Value"].Value = simulatedValue.ToString();
+                                                row.Cells["Quality"].Value = "Simulated";
+                                                row.Cells["Timestamp"].Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
+                                                
+                                                // Atualizar o texto do botão para "Parar"
+                                                if (row.Cells["Simulate"] is DataGridViewButtonCell btnCell)
+                                                {
+                                                    btnCell.Value = "Parar";
+                                                }
+                                            }
+                                            catch
+                                            {
+                                                // Em caso de erro, usar valor real
+                                                row.Cells["Value"].Value = kvp.Value.Value?.ToString() ?? "---";
+                                                row.Cells["Quality"].Value = kvp.Value.Quality ?? "---";
+                                                row.Cells["Timestamp"].Value = kvp.Value.Timestamp?.ToString("yyyy-MM-dd HH:mm:ss.fff") ?? "---";
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // Usar valor real da tag
+                                            row.Cells["Value"].Value = kvp.Value.Value?.ToString() ?? "---";
+                                            row.Cells["Quality"].Value = kvp.Value.Quality ?? "---";
+                                            row.Cells["Timestamp"].Value = kvp.Value.Timestamp?.ToString("yyyy-MM-dd HH:mm:ss.fff") ?? "---";
+                                            
+                                            // Atualizar o texto do botão para "Simular"
+                                            if (row.Cells["Simulate"] is DataGridViewButtonCell btnCell)
+                                            {
+                                                btnCell.Value = "Simular";
+                                            }
+                                        }
                                     }
                                 }
                             });
@@ -443,7 +504,9 @@ namespace CoddCtTools
             try
             {
                 cancellationTokenSource?.Cancel();
+                StopSimulationWriteTimer();
                 connector?.Disconnect();
+                tagSimulator?.ClearAll();
 
                 btnConnect!.Enabled = true;
                 btnDisconnect!.Enabled = false;
@@ -456,6 +519,78 @@ namespace CoddCtTools
             {
                 MessageBox.Show($"Erro ao desconectar: {ex.Message}", "Erro", 
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        
+        /// <summary>
+        /// Inicia o timer para escrever tags simuladas no servidor a cada 5 segundos
+        /// </summary>
+        private void StartSimulationWriteTimer()
+        {
+            StopSimulationWriteTimer();
+            
+            simulationWriteTimer = new System.Timers.Timer(1000); // Verifica a cada 1 segundo
+            simulationWriteTimer.Elapsed += SimulationWriteTimer_Elapsed;
+            simulationWriteTimer.AutoReset = true;
+            simulationWriteTimer.Start();
+        }
+        
+        /// <summary>
+        /// Para o timer de escrita de simulação
+        /// </summary>
+        private void StopSimulationWriteTimer()
+        {
+            if (simulationWriteTimer != null)
+            {
+                simulationWriteTimer.Stop();
+                simulationWriteTimer.Elapsed -= SimulationWriteTimer_Elapsed;
+                simulationWriteTimer.Dispose();
+                simulationWriteTimer = null;
+            }
+        }
+        
+        /// <summary>
+        /// Evento do timer: escreve valores simulados nas tags a cada 5 segundos
+        /// </summary>
+        private void SimulationWriteTimer_Elapsed(object? sender, System.Timers.ElapsedEventArgs e)
+        {
+            if (connector == null || !connector.IsConnected || tagSimulator == null)
+                return;
+            
+            try
+            {
+                var simulatedTags = tagSimulator.GetAllSimulatedTags();
+                
+                foreach (var kvp in simulatedTags)
+                {
+                    string tagName = kvp.Key;
+                    var tagInfo = kvp.Value;
+                    
+                    // Verificar se deve escrever (passou 5 segundos)
+                    if (tagSimulator.ShouldWrite(tagName, 5))
+                    {
+                        try
+                        {
+                            // Gerar valor simulado
+                            double simulatedValue = tagSimulator.GenerateSimulatedValue(tagName);
+                            
+                            // Escrever no servidor
+                            connector.WriteTag(tagName, simulatedValue.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                            
+                            // Atualizar último horário de escrita
+                            tagSimulator.UpdateLastWriteTime(tagName);
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log erro mas continua com outras tags
+                            System.Diagnostics.Debug.WriteLine($"Erro ao escrever tag simulada '{tagName}': {ex.Message}");
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Ignorar erros no timer
             }
         }
 
@@ -619,10 +754,89 @@ namespace CoddCtTools
             }
         }
 
+        private void TagsGridView_CellClick(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (tagsGridView == null || e.RowIndex < 0 || e.ColumnIndex < 0) return;
+
+            // Verificar se foi clicado na coluna Simulate
+            if (tagsGridView.Columns[e.ColumnIndex].Name == "Simulate")
+            {
+                var row = tagsGridView.Rows[e.RowIndex];
+                string tagName = row.Cells["TagName"].Value?.ToString() ?? "";
+
+                if (string.IsNullOrEmpty(tagName))
+                {
+                    MessageBox.Show("Não foi possível identificar a tag selecionada.", "Erro",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // Verificar se a tag já está sendo simulada
+                if (tagSimulator != null && tagSimulator.IsSimulated(tagName))
+                {
+                    // Parar simulação
+                    tagSimulator.RemoveSimulation(tagName);
+                    
+                    // Atualizar texto do botão
+                    if (row.Cells["Simulate"] is DataGridViewButtonCell btnCell)
+                    {
+                        btnCell.Value = "Simular";
+                    }
+                    
+                    MessageBox.Show($"Simulação da tag '{tagName}' foi interrompida.", "Simulação Parada",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    // Iniciar simulação - mostrar diálogo
+                    var simInfo = tagSimulator?.GetSimulationInfo(tagName);
+                    double? currentMin = simInfo?.MinValue;
+                    double? currentMax = simInfo?.MaxValue;
+
+                    using (var simulateDialog = new SimulateTagDialog(tagName, currentMin, currentMax))
+                    {
+                        if (simulateDialog.ShowDialog() == DialogResult.OK && !simulateDialog.Cancelled)
+                        {
+                            // Configurar simulação
+                            tagSimulator?.SetSimulation(tagName, simulateDialog.MinValue, simulateDialog.MaxValue);
+                            
+                            // Escrever valor imediatamente (não esperar 5 segundos)
+                            if (connector != null && connector.IsConnected)
+                            {
+                                try
+                                {
+                                    double simulatedValue = tagSimulator!.GenerateSimulatedValue(tagName);
+                                    connector.WriteTag(tagName, simulatedValue.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                                    tagSimulator.UpdateLastWriteTime(tagName);
+                                }
+                                catch (Exception ex)
+                                {
+                                    MessageBox.Show($"Erro ao escrever valor inicial na tag: {ex.Message}", "Aviso",
+                                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                }
+                            }
+                            
+                            // Atualizar texto do botão
+                            if (row.Cells["Simulate"] is DataGridViewButtonCell btnCell)
+                            {
+                                btnCell.Value = "Parar";
+                            }
+                            
+                            MessageBox.Show($"Simulação configurada para a tag '{tagName}':\nMínimo: {simulateDialog.MinValue}\nMáximo: {simulateDialog.MaxValue}\n\nValores serão escritos no servidor a cada 5 segundos.",
+                                "Simulação Iniciada",
+                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                    }
+                }
+            }
+        }
+
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             cancellationTokenSource?.Cancel();
+            StopSimulationWriteTimer();
             connector?.Disconnect();
+            tagSimulator?.ClearAll();
             base.OnFormClosing(e);
         }
     }

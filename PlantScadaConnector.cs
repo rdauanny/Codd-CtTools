@@ -118,6 +118,13 @@ namespace CoddCtTools
             public DateTime? Timestamp { get; set; }
         }
 
+        // Estrutura para informações da tag
+        public class TagInfo
+        {
+            public string Name { get; set; } = "";
+            public string Description { get; set; } = "";
+        }
+
         // Constantes da CtApi (baseadas no enum CtOpen do projeto de referência)
         private const uint CT_OPEN_RECONNECT = 0x00000002; // Reconnect flag
         private const uint CT_OPEN_NORMAL = 0; // Modo normal
@@ -623,10 +630,19 @@ namespace CoddCtTools
         /// </summary>
         public List<string> GetAllTags()
         {
+            var tagInfos = GetAllTagInfos();
+            return tagInfos.Select(t => t.Name).ToList();
+        }
+
+        /// <summary>
+        /// Obtém lista de todas as tags com informações (nome e descrição)
+        /// </summary>
+        public List<TagInfo> GetAllTagInfos()
+        {
             if (!IsConnected || connectionHandle == IntPtr.Zero)
                 throw new Exception("Não conectado ao servidor.");
 
-            var tagList = new List<string>();
+            var tagList = new List<TagInfo>();
             IntPtr searchHandle = IntPtr.Zero;
 
             try
@@ -830,31 +846,84 @@ namespace CoddCtTools
         }
 
         /// <summary>
-        /// Processa um objeto de tag para extrair o nome
+        /// Processa um objeto de tag para extrair o nome (versão antiga para compatibilidade)
         /// </summary>
         private void ProcessTagObject(IntPtr objHnd, List<string> tagList)
         {
+            var tagInfoList = new List<TagInfo>();
+            ProcessTagObject(objHnd, tagInfoList);
+            foreach (var tagInfo in tagInfoList)
+            {
+                if (!tagList.Contains(tagInfo.Name))
+                {
+                    tagList.Add(tagInfo.Name);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Processa um objeto de tag para extrair o nome e descrição
+        /// </summary>
+        private void ProcessTagObject(IntPtr objHnd, List<TagInfo> tagList)
+        {
             try
             {
+                string tagName = "";
+                string tagDescription = "";
+
                 // Tentar diferentes propriedades para obter o nome da tag
-                string[] propertyNames = { "Name", "TagName", "TAG", "Tag" };
+                string[] namePropertyNames = { "Name", "TagName", "TAG", "Tag" };
                 
-                foreach (string propName in propertyNames)
+                foreach (string propName in namePropertyNames)
                 {
-                    StringBuilder tagName = new StringBuilder(256);
+                    StringBuilder tagNameBuffer = new StringBuilder(256);
                     UIntPtr resultLength = UIntPtr.Zero;
                     
-                    bool result = ctGetProperty(objHnd, propName, tagName, (uint)tagName.Capacity, ref resultLength, CT_PROP_STRING);
+                    bool result = ctGetProperty(objHnd, propName, tagNameBuffer, (uint)tagNameBuffer.Capacity, ref resultLength, CT_PROP_STRING);
                     
                     // ctGetProperty retorna true em caso de sucesso
                     if (result && resultLength.ToUInt32() > 0)
                     {
-                        string tagNameStr = tagName.ToString().Trim('\0', ' ');
-                        if (!string.IsNullOrEmpty(tagNameStr) && !tagList.Contains(tagNameStr))
+                        tagName = tagNameBuffer.ToString().Trim('\0', ' ');
+                        if (!string.IsNullOrEmpty(tagName))
                         {
-                            tagList.Add(tagNameStr);
+                            break; // Encontrou o nome
                         }
-                        return; // Encontrou, pode parar
+                    }
+                }
+
+                // Tentar diferentes propriedades para obter a descrição da tag
+                string[] descPropertyNames = { "Description", "Desc", "Comment", "CommentText", "Comment_Text", "DESC", "COMMENT" };
+                
+                foreach (string propName in descPropertyNames)
+                {
+                    StringBuilder descBuffer = new StringBuilder(512);
+                    UIntPtr resultLength = UIntPtr.Zero;
+                    
+                    bool result = ctGetProperty(objHnd, propName, descBuffer, (uint)descBuffer.Capacity, ref resultLength, CT_PROP_STRING);
+                    
+                    // ctGetProperty retorna true em caso de sucesso
+                    if (result && resultLength.ToUInt32() > 0)
+                    {
+                        tagDescription = descBuffer.ToString().Trim('\0', ' ');
+                        if (!string.IsNullOrEmpty(tagDescription))
+                        {
+                            break; // Encontrou a descrição
+                        }
+                    }
+                }
+
+                // Adicionar à lista se encontrou pelo menos o nome
+                if (!string.IsNullOrEmpty(tagName))
+                {
+                    // Verificar se já existe na lista
+                    if (!tagList.Any(t => t.Name == tagName))
+                    {
+                        tagList.Add(new TagInfo
+                        {
+                            Name = tagName,
+                            Description = tagDescription
+                        });
                     }
                 }
             }
