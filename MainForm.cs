@@ -259,12 +259,36 @@ namespace CoddCtTools
             };
             tagsGridView.Columns.Add(simulateColumn);
             
-            tagsGridView.Columns["TagName"].FillWeight = 25;
-            tagsGridView.Columns["Description"].FillWeight = 25;
-            tagsGridView.Columns["Value"].FillWeight = 15;
-            tagsGridView.Columns["Quality"].FillWeight = 15;
-            tagsGridView.Columns["Timestamp"].FillWeight = 15;
-            tagsGridView.Columns["Simulate"].FillWeight = 5;
+            // Adicionar coluna de botão Set
+            var setColumn = new DataGridViewButtonColumn
+            {
+                Name = "Set",
+                HeaderText = "Set",
+                Text = "Set",
+                UseColumnTextForButtonValue = true,
+                Width = 60
+            };
+            tagsGridView.Columns.Add(setColumn);
+            
+            // Adicionar coluna de botão Reset
+            var resetColumn = new DataGridViewButtonColumn
+            {
+                Name = "Reset",
+                HeaderText = "Reset",
+                Text = "Reset",
+                UseColumnTextForButtonValue = true,
+                Width = 60
+            };
+            tagsGridView.Columns.Add(resetColumn);
+            
+            tagsGridView.Columns["TagName"].FillWeight = 20;
+            tagsGridView.Columns["Description"].FillWeight = 20;
+            tagsGridView.Columns["Value"].FillWeight = 12;
+            tagsGridView.Columns["Quality"].FillWeight = 12;
+            tagsGridView.Columns["Timestamp"].FillWeight = 12;
+            tagsGridView.Columns["Simulate"].FillWeight = 8;
+            tagsGridView.Columns["Set"].FillWeight = 6;
+            tagsGridView.Columns["Reset"].FillWeight = 6;
             
             // Handler para cliques em botões
             tagsGridView.CellClick += TagsGridView_CellClick;
@@ -371,7 +395,7 @@ namespace CoddCtTools
                         {
                             tagsGridView!.Invoke((MethodInvoker)delegate
                             {
-                                tagsGridView.Rows.Add(tagInfo.Name, tagInfo.Description ?? "", "---", "---", "---", "Simular");
+                                tagsGridView.Rows.Add(tagInfo.Name, tagInfo.Description ?? "", "---", "---", "---", "Simular", "Set", "Reset");
                             });
                         }
 
@@ -758,19 +782,34 @@ namespace CoddCtTools
         {
             if (tagsGridView == null || e.RowIndex < 0 || e.ColumnIndex < 0) return;
 
-            // Verificar se foi clicado na coluna Simulate
-            if (tagsGridView.Columns[e.ColumnIndex].Name == "Simulate")
+            var row = tagsGridView.Rows[e.RowIndex];
+            string tagName = row.Cells["TagName"].Value?.ToString() ?? "";
+            string columnName = tagsGridView.Columns[e.ColumnIndex].Name;
+
+            if (string.IsNullOrEmpty(tagName))
             {
-                var row = tagsGridView.Rows[e.RowIndex];
-                string tagName = row.Cells["TagName"].Value?.ToString() ?? "";
+                MessageBox.Show("Não foi possível identificar a tag selecionada.", "Erro",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
 
-                if (string.IsNullOrEmpty(tagName))
-                {
-                    MessageBox.Show("Não foi possível identificar a tag selecionada.", "Erro",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
+            // Verificar se foi clicado na coluna Set
+            if (columnName == "Set")
+            {
+                WriteTagValue(tagName, "1", row);
+                return;
+            }
 
+            // Verificar se foi clicado na coluna Reset
+            if (columnName == "Reset")
+            {
+                WriteTagValue(tagName, "0", row);
+                return;
+            }
+
+            // Verificar se foi clicado na coluna Simulate
+            if (columnName == "Simulate")
+            {
                 // Verificar se a tag já está sendo simulada
                 if (tagSimulator != null && tagSimulator.IsSimulated(tagName))
                 {
@@ -828,6 +867,36 @@ namespace CoddCtTools
                         }
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Escreve um valor em uma tag e atualiza a grid
+        /// </summary>
+        private void WriteTagValue(string tagName, string value, DataGridViewRow row)
+        {
+            if (connector == null || !connector.IsConnected)
+            {
+                MessageBox.Show("Não conectado ao servidor.", "Aviso",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                connector.WriteTag(tagName, value);
+                
+                // Atualizar o valor na grid imediatamente
+                if (row != null)
+                {
+                    row.Cells["Value"].Value = value;
+                    row.Cells["Timestamp"].Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erro ao escrever tag '{tagName}':\n\n{ex.Message}", "Erro",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
