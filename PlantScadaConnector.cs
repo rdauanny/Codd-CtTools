@@ -19,7 +19,7 @@ namespace CoddCtTools
         private static string? logFilePath = null;
         
         // Caminho padrão das DLLs do PlantScada
-        private static string defaultCtApiPath = @"C:\Program Files (x86)\Schneider Electric\Power Operation\v2022\Applications\AppServices\bin";
+        private static string defaultCtApiPath = @"C:\Program Files (x86)\Schneider Electric\Power Operation\v2024\Applications\AppServices\bin";
         
         // Flag para verificar se a DLL já foi carregada
         private static bool dllLoaded = false;

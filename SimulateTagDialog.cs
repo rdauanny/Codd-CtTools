@@ -4,7 +4,7 @@ using System.Windows.Forms;
 namespace CoddCtTools
 {
     /// <summary>
-    /// Diálogo para configurar valores mínimo e máximo para simulação de tags
+    /// Dialog to configure minimum and maximum values for tag simulation
     /// </summary>
     public partial class SimulateTagDialog : Form
     {
@@ -25,7 +25,7 @@ namespace CoddCtTools
 
         private void InitializeComponent(string tagName, double? currentMin, double? currentMax)
         {
-            this.Text = $"Simular Tag: {tagName}";
+            this.Text = $"Simulate Tag: {tagName}";
             this.Size = new System.Drawing.Size(400, 200);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -42,7 +42,7 @@ namespace CoddCtTools
 
             var lblMinValue = new Label
             {
-                Text = "Valor Mínimo:",
+                Text = "Minimum Value:",
                 Location = new System.Drawing.Point(10, 50),
                 Size = new System.Drawing.Size(100, 23),
                 TextAlign = System.Drawing.ContentAlignment.MiddleLeft
@@ -57,7 +57,7 @@ namespace CoddCtTools
 
             var lblMaxValue = new Label
             {
-                Text = "Valor Máximo:",
+                Text = "Maximum Value:",
                 Location = new System.Drawing.Point(10, 85),
                 Size = new System.Drawing.Size(100, 23),
                 TextAlign = System.Drawing.ContentAlignment.MiddleLeft
@@ -81,7 +81,7 @@ namespace CoddCtTools
 
             btnCancel = new Button
             {
-                Text = "Cancelar",
+                Text = "Cancel",
                 DialogResult = DialogResult.Cancel,
                 Location = new System.Drawing.Point(280, 120),
                 Size = new System.Drawing.Size(90, 30)
@@ -104,7 +104,7 @@ namespace CoddCtTools
             if (!double.TryParse(txtMinValue.Text, System.Globalization.NumberStyles.Any, 
                 System.Globalization.CultureInfo.InvariantCulture, out double min))
             {
-                MessageBox.Show("Por favor, insira um valor numérico válido para o mínimo.", "Valor Inválido",
+                MessageBox.Show("Please enter a valid numeric value for the minimum.", "Invalid Value",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtMinValue.Focus();
                 return;
@@ -113,7 +113,7 @@ namespace CoddCtTools
             if (!double.TryParse(txtMaxValue.Text, System.Globalization.NumberStyles.Any,
                 System.Globalization.CultureInfo.InvariantCulture, out double max))
             {
-                MessageBox.Show("Por favor, insira um valor numérico válido para o máximo.", "Valor Inválido",
+                MessageBox.Show("Please enter a valid numeric value for the maximum.", "Invalid Value",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtMaxValue.Focus();
                 return;
@@ -121,7 +121,7 @@ namespace CoddCtTools
 
             if (min >= max)
             {
-                MessageBox.Show("O valor mínimo deve ser menor que o valor máximo.", "Valores Inválidos",
+                MessageBox.Show("The minimum value must be less than the maximum value.", "Invalid Values",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtMinValue.Focus();
                 return;

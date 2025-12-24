@@ -35,7 +35,7 @@ namespace CoddCtTools
 
         private void InitializeComponent()
         {
-            this.Text = "Codd Automação - PlantScada / Power Operation - Tester";
+            this.Text = "Codd Automation - PlantScada / Power Operation - Tester";
             this.Size = new System.Drawing.Size(1200, 700);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
@@ -68,7 +68,7 @@ namespace CoddCtTools
 
             var btnBrowsePath = new Button
             {
-                Text = "Procurar...",
+                Text = "Browse...",
                 Location = new System.Drawing.Point(510, 11),
                 Size = new System.Drawing.Size(80, 25)
             };
@@ -76,7 +76,7 @@ namespace CoddCtTools
             {
                 using (var folderDialog = new FolderBrowserDialog())
                 {
-                    folderDialog.Description = "Selecione a pasta onde estão as DLLs do CTAPI (geralmente a pasta Bin do PlantScada)";
+                    folderDialog.Description = "Select the folder where the CTAPI DLLs are located (usually the PlantScada Bin folder)";
                     folderDialog.SelectedPath = txtCtApiPath?.Text ?? "";
                     if (folderDialog.ShowDialog() == DialogResult.OK)
                     {
@@ -91,7 +91,7 @@ namespace CoddCtTools
 
             var lblServer = new Label
             {
-                Text = "Servidor:",
+                Text = "Server:",
                 Location = new System.Drawing.Point(10, 45),
                 Size = new System.Drawing.Size(80, 23),
                 TextAlign = System.Drawing.ContentAlignment.MiddleLeft
@@ -106,7 +106,7 @@ namespace CoddCtTools
 
             var lblUsername = new Label
             {
-                Text = "Usuário:",
+                Text = "Username:",
                 Location = new System.Drawing.Point(10, 75),
                 Size = new System.Drawing.Size(80, 23),
                 TextAlign = System.Drawing.ContentAlignment.MiddleLeft
@@ -120,7 +120,7 @@ namespace CoddCtTools
 
             var lblPassword = new Label
             {
-                Text = "Senha:",
+                Text = "Password:",
                 Location = new System.Drawing.Point(10, 105),
                 Size = new System.Drawing.Size(80, 23),
                 TextAlign = System.Drawing.ContentAlignment.MiddleLeft
@@ -135,7 +135,7 @@ namespace CoddCtTools
 
             btnConnect = new Button
             {
-                Text = "Conectar",
+                Text = "Connect",
                 Location = new System.Drawing.Point(420, 42),
                 Size = new System.Drawing.Size(100, 30),
                 UseVisualStyleBackColor = true
@@ -144,7 +144,7 @@ namespace CoddCtTools
 
             btnDisconnect = new Button
             {
-                Text = "Desconectar",
+                Text = "Disconnect",
                 Location = new System.Drawing.Point(420, 78),
                 Size = new System.Drawing.Size(100, 30),
                 Enabled = false,
@@ -154,7 +154,7 @@ namespace CoddCtTools
 
             btnTestConnection = new Button
             {
-                Text = "Testar Conexão",
+                Text = "Test Connection",
                 Location = new System.Drawing.Point(530, 42),
                 Size = new System.Drawing.Size(120, 30),
                 UseVisualStyleBackColor = true
@@ -163,7 +163,7 @@ namespace CoddCtTools
 
             lblStatus = new Label
             {
-                Text = "Status: Desconectado",
+                Text = "Status: Disconnected",
                 Location = new System.Drawing.Point(10, 135),
                 Size = new System.Drawing.Size(500, 23),
                 ForeColor = System.Drawing.Color.Red
@@ -199,7 +199,7 @@ namespace CoddCtTools
 
             var lblTags = new Label
             {
-                Text = "Tags (Tempo Real):",
+                Text = "Tags (Real Time):",
                 Dock = DockStyle.Top,
                 Height = 30,
                 Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Bold)
@@ -215,7 +215,7 @@ namespace CoddCtTools
 
             var lblSearch = new Label
             {
-                Text = "Buscar:",
+                Text = "Search:",
                 Location = new System.Drawing.Point(5, 8),
                 Size = new System.Drawing.Size(50, 23),
                 TextAlign = System.Drawing.ContentAlignment.MiddleLeft
@@ -242,18 +242,18 @@ namespace CoddCtTools
                 MultiSelect = false
             };
 
-            tagsGridView.Columns.Add("TagName", "Nome da Tag");
-            tagsGridView.Columns.Add("Description", "Descrição");
-            tagsGridView.Columns.Add("Value", "Valor");
-            tagsGridView.Columns.Add("Quality", "Qualidade");
-            tagsGridView.Columns.Add("Timestamp", "Data/Hora");
+            tagsGridView.Columns.Add("TagName", "Tag Name");
+            tagsGridView.Columns.Add("Description", "Description");
+            tagsGridView.Columns.Add("Value", "Value");
+            tagsGridView.Columns.Add("Quality", "Quality");
+            tagsGridView.Columns.Add("Timestamp", "Date/Time");
             
             // Adicionar coluna de botão Simulate
             var simulateColumn = new DataGridViewButtonColumn
             {
                 Name = "Simulate",
-                HeaderText = "Simular",
-                Text = "Simular",
+                HeaderText = "Simulate",
+                Text = "Simulate",
                 UseColumnTextForButtonValue = true,
                 Width = 80
             };
@@ -295,7 +295,7 @@ namespace CoddCtTools
 
             // Adicionar menu de contexto (botão direito)
             var contextMenu = new ContextMenuStrip();
-            var writeMenuItem = new ToolStripMenuItem("Escrever Valor...");
+            var writeMenuItem = new ToolStripMenuItem("Write Value...");
             writeMenuItem.Click += WriteTagMenuItem_Click;
             contextMenu.Items.Add(writeMenuItem);
             tagsGridView.ContextMenuStrip = contextMenu;
@@ -335,7 +335,7 @@ namespace CoddCtTools
                 string.IsNullOrWhiteSpace(txtUsername?.Text) ||
                 string.IsNullOrWhiteSpace(txtPassword?.Text))
             {
-                MessageBox.Show("Por favor, preencha todos os campos de conexão.", "Aviso", 
+                MessageBox.Show("Please fill in all connection fields.", "Warning", 
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -343,7 +343,7 @@ namespace CoddCtTools
             try
             {
                 btnConnect!.Enabled = false;
-                lblStatus!.Text = "Status: Conectando...";
+                lblStatus!.Text = "Status: Connecting...";
                 lblStatus.ForeColor = System.Drawing.Color.Orange;
 
                 // Configurar caminho das DLLs antes de conectar
@@ -374,7 +374,7 @@ namespace CoddCtTools
 
                 if (connected)
                 {
-                    lblStatus.Text = "Status: Conectado";
+                    lblStatus.Text = "Status: Connected";
                     lblStatus.ForeColor = System.Drawing.Color.Green;
                     btnConnect.Enabled = false;
                     btnDisconnect!.Enabled = true;
@@ -395,7 +395,7 @@ namespace CoddCtTools
                         {
                             tagsGridView!.Invoke((MethodInvoker)delegate
                             {
-                                tagsGridView.Rows.Add(tagInfo.Name, tagInfo.Description ?? "", "---", "---", "---", "Simular", "Set", "Reset");
+                                tagsGridView.Rows.Add(tagInfo.Name, tagInfo.Description ?? "", "---", "---", "---", "Simulate", "Set", "Reset");
                             });
                         }
 
@@ -408,25 +408,25 @@ namespace CoddCtTools
                     }
                     else
                     {
-                        MessageBox.Show("Nenhuma tag encontrada no projeto.", "Informação", 
+                        MessageBox.Show("No tags found in the project.", "Information", 
                             MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                 }
                 else
                 {
-                    lblStatus.Text = "Status: Falha na conexão";
+                    lblStatus.Text = "Status: Connection failed";
                     lblStatus.ForeColor = System.Drawing.Color.Red;
                     btnConnect.Enabled = true;
-                    MessageBox.Show($"Falha ao conectar. Verifique o log em:\n{logPath}", "Erro", 
+                    MessageBox.Show($"Failed to connect. Check the log at:\n{logPath}", "Error", 
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             catch (Exception ex)
             {
-                lblStatus!.Text = "Status: Erro";
+                lblStatus!.Text = "Status: Error";
                 lblStatus.ForeColor = System.Drawing.Color.Red;
                 btnConnect!.Enabled = true;
-                MessageBox.Show($"Erro ao conectar:\n\n{ex.Message}", "Erro", 
+                MessageBox.Show($"Error connecting:\n\n{ex.Message}", "Error", 
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -472,7 +472,7 @@ namespace CoddCtTools
                                                 // Atualizar o texto do botão para "Parar"
                                                 if (row.Cells["Simulate"] is DataGridViewButtonCell btnCell)
                                                 {
-                                                    btnCell.Value = "Parar";
+                                                    btnCell.Value = "Stop";
                                                 }
                                             }
                                             catch
@@ -493,7 +493,7 @@ namespace CoddCtTools
                                             // Atualizar o texto do botão para "Simular"
                                             if (row.Cells["Simulate"] is DataGridViewButtonCell btnCell)
                                             {
-                                                btnCell.Value = "Simular";
+                                                btnCell.Value = "Simulate";
                                             }
                                         }
                                     }
@@ -516,7 +516,7 @@ namespace CoddCtTools
                 {
                     tagsGridView?.Invoke((MethodInvoker)delegate
                     {
-                        MessageBox.Show($"Erro durante atualização de tags:\n\n{ex.Message}", "Erro",
+                        MessageBox.Show($"Error during tag update:\n\n{ex.Message}", "Error",
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
                     });
                 }
@@ -534,14 +534,14 @@ namespace CoddCtTools
 
                 btnConnect!.Enabled = true;
                 btnDisconnect!.Enabled = false;
-                lblStatus!.Text = "Status: Desconectado";
+                lblStatus!.Text = "Status: Disconnected";
                 lblStatus.ForeColor = System.Drawing.Color.Red;
 
                 tagsGridView!.Rows.Clear();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Erro ao desconectar: {ex.Message}", "Erro", 
+                MessageBox.Show($"Error disconnecting: {ex.Message}", "Error", 
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -607,7 +607,7 @@ namespace CoddCtTools
                         catch (Exception ex)
                         {
                             // Log erro mas continua com outras tags
-                            System.Diagnostics.Debug.WriteLine($"Erro ao escrever tag simulada '{tagName}': {ex.Message}");
+                            System.Diagnostics.Debug.WriteLine($"Error writing simulated tag '{tagName}': {ex.Message}");
                         }
                     }
                 }
@@ -630,7 +630,7 @@ namespace CoddCtTools
                     $"CtApi_Log_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
                 PlantScadaConnector.SetLogFile(logPath);
 
-                lblStatus!.Text = "Status: Testando conexão...";
+                lblStatus!.Text = "Status: Testing connection...";
                 lblStatus.ForeColor = System.Drawing.Color.Orange;
 
                 var testConnector = new PlantScadaConnector();
@@ -645,29 +645,29 @@ namespace CoddCtTools
                     lblStatus.Text = $"Status: Teste OK - {testResult.Configuration}";
                     lblStatus.ForeColor = System.Drawing.Color.Green;
                     MessageBox.Show(
-                        $"✓ Teste de conexão bem-sucedido!\n\nConfiguração que funcionou:\n{testResult.Configuration}\n\nHandle: {testResult.Handle}\n\nLog salvo em:\n{logPath}",
-                        "Teste de Conexão",
+                        $"✓ Connection test successful!\n\nConfiguration that worked:\n{testResult.Configuration}\n\nHandle: {testResult.Handle}\n\nLog saved at:\n{logPath}",
+                        "Connection Test",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
                 }
                 else
                 {
-                    lblStatus.Text = "Status: Teste falhou";
+                    lblStatus.Text = "Status: Test failed";
                     lblStatus.ForeColor = System.Drawing.Color.Red;
                     MessageBox.Show(
-                        $"✗ Teste de conexão falhou.\n\n{testResult.Message}\n\nLog salvo em:\n{logPath}\n\nVerifique o arquivo de log para mais detalhes.",
-                        "Teste de Conexão",
+                        $"✗ Connection test failed.\n\n{testResult.Message}\n\nLog saved at:\n{logPath}\n\nCheck the log file for more details.",
+                        "Connection Test",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Warning);
                 }
             }
             catch (Exception ex)
             {
-                lblStatus!.Text = "Status: Erro no teste";
+                lblStatus!.Text = "Status: Test error";
                 lblStatus.ForeColor = System.Drawing.Color.Red;
                 MessageBox.Show(
-                    $"Erro ao testar conexão:\n\n{ex.Message}",
-                    "Erro",
+                    $"Error testing connection:\n\n{ex.Message}",
+                    "Error",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
@@ -684,7 +684,7 @@ namespace CoddCtTools
         {
             if (tagsGridView?.SelectedRows.Count == 0 || connector == null || !connector.IsConnected)
             {
-                MessageBox.Show("Por favor, selecione uma tag para escrever.", "Aviso",
+                MessageBox.Show("Please select a tag to write.", "Warning",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -701,7 +701,7 @@ namespace CoddCtTools
 
                 if (string.IsNullOrEmpty(tagName))
                 {
-                    MessageBox.Show("Não foi possível identificar a tag selecionada.", "Erro",
+                    MessageBox.Show("Could not identify the selected tag.", "Error",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
@@ -709,7 +709,7 @@ namespace CoddCtTools
                 // Criar diálogo para inserir valor
                 using (var inputDialog = new Form())
                 {
-                    inputDialog.Text = $"Escrever valor na tag: {tagName}";
+                    inputDialog.Text = $"Write value to tag: {tagName}";
                     inputDialog.Size = new System.Drawing.Size(400, 150);
                     inputDialog.StartPosition = FormStartPosition.CenterParent;
                     inputDialog.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -718,7 +718,7 @@ namespace CoddCtTools
 
                     var lblValue = new Label
                     {
-                        Text = "Novo valor:",
+                        Text = "New value:",
                         Location = new System.Drawing.Point(10, 20),
                         Size = new System.Drawing.Size(100, 23),
                         TextAlign = System.Drawing.ContentAlignment.MiddleLeft
@@ -741,7 +741,7 @@ namespace CoddCtTools
 
                     var btnCancel = new Button
                     {
-                        Text = "Cancelar",
+                        Text = "Cancel",
                         DialogResult = DialogResult.Cancel,
                         Location = new System.Drawing.Point(280, 60),
                         Size = new System.Drawing.Size(90, 30)
@@ -759,7 +759,7 @@ namespace CoddCtTools
                         // Escrever valor na tag
                         connector.WriteTag(tagName, txtValue.Text);
 
-                        MessageBox.Show($"Valor '{txtValue.Text}' escrito com sucesso na tag '{tagName}'.", "Sucesso",
+                        MessageBox.Show($"Value '{txtValue.Text}' written successfully to tag '{tagName}'.", "Success",
                             MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                         // Atualizar o valor na grid imediatamente
@@ -773,7 +773,7 @@ namespace CoddCtTools
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Erro ao escrever tag:\n\n{ex.Message}", "Erro",
+                MessageBox.Show($"Error writing tag:\n\n{ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -788,7 +788,7 @@ namespace CoddCtTools
 
             if (string.IsNullOrEmpty(tagName))
             {
-                MessageBox.Show("Não foi possível identificar a tag selecionada.", "Erro",
+                MessageBox.Show("Could not identify the selected tag.", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
@@ -819,10 +819,10 @@ namespace CoddCtTools
                     // Atualizar texto do botão
                     if (row.Cells["Simulate"] is DataGridViewButtonCell btnCell)
                     {
-                        btnCell.Value = "Simular";
+                        btnCell.Value = "Simulate";
                     }
                     
-                    MessageBox.Show($"Simulação da tag '{tagName}' foi interrompida.", "Simulação Parada",
+                    MessageBox.Show($"Simulation of tag '{tagName}' has been stopped.", "Simulation Stopped",
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
@@ -850,7 +850,7 @@ namespace CoddCtTools
                                 }
                                 catch (Exception ex)
                                 {
-                                    MessageBox.Show($"Erro ao escrever valor inicial na tag: {ex.Message}", "Aviso",
+                                    MessageBox.Show($"Error writing initial value to tag: {ex.Message}", "Warning",
                                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
                                 }
                             }
@@ -858,11 +858,11 @@ namespace CoddCtTools
                             // Atualizar texto do botão
                             if (row.Cells["Simulate"] is DataGridViewButtonCell btnCell)
                             {
-                                btnCell.Value = "Parar";
+                                btnCell.Value = "Stop";
                             }
                             
-                            MessageBox.Show($"Simulação configurada para a tag '{tagName}':\nMínimo: {simulateDialog.MinValue}\nMáximo: {simulateDialog.MaxValue}\n\nValores serão escritos no servidor a cada 5 segundos.",
-                                "Simulação Iniciada",
+                            MessageBox.Show($"Simulation configured for tag '{tagName}':\nMinimum: {simulateDialog.MinValue}\nMaximum: {simulateDialog.MaxValue}\n\nValues will be written to the server every 5 seconds.",
+                                "Simulation Started",
                                 MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }
                     }
@@ -877,7 +877,7 @@ namespace CoddCtTools
         {
             if (connector == null || !connector.IsConnected)
             {
-                MessageBox.Show("Não conectado ao servidor.", "Aviso",
+                MessageBox.Show("Not connected to server.", "Warning",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -895,7 +895,7 @@ namespace CoddCtTools
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Erro ao escrever tag '{tagName}':\n\n{ex.Message}", "Erro",
+                MessageBox.Show($"Error writing tag '{tagName}':\n\n{ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
