@@ -685,37 +685,25 @@ namespace CoddCtTools
                                 {
                                     WriteDebugLog("Reading tag values from grid...");
                                     
-                                    // Ler apenas as tags VISÍVEIS na grid (muito mais eficiente)
+                                    // Ler TODAS as tags da grid, independente do filtro de visibilidade
                                     var tagsInGrid = new List<string>();
                                     tagsGridView?.Invoke((MethodInvoker)delegate
                                     {
-                                        // Limitar a leitura para melhorar performance
-                                        // Se há muitas tags visíveis, ler apenas as primeiras 200 ou as que estão na viewport
-                                        int maxTagsToRead = 200;
-                                        int count = 0;
-                                        
                                         foreach (DataGridViewRow row in tagsGridView.Rows)
                                         {
-                                            // Apenas processar linhas visíveis
-                                            if (row.Visible && row.Cells["TagName"]?.Value != null)
+                                            // Ler todas as tags, independente se estão visíveis ou não
+                                            if (row.Cells["TagName"]?.Value != null)
                                             {
                                                 string tagName = row.Cells["TagName"].Value.ToString() ?? "";
                                                 if (!string.IsNullOrEmpty(tagName))
                                                 {
                                                     tagsInGrid.Add(tagName);
-                                                    count++;
-                                                    
-                                                    // Limitar para não sobrecarregar
-                                                    if (count >= maxTagsToRead)
-                                                    {
-                                                        break;
-                                                    }
                                                 }
                                             }
                                         }
                                     });
                                     
-                                    WriteDebugLog($"Found {tagsInGrid.Count} visible tags in grid (limited to first 200), reading values...");
+                                    WriteDebugLog($"Found {tagsInGrid.Count} tags in grid (all tags, ignoring filter), reading values...");
                                     
                                     // Ler valores apenas das tags que estão na grid
                                     var result = new Dictionary<string, PlantScadaConnector.TagValue>();
