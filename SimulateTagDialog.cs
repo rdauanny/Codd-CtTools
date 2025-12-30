@@ -19,13 +19,18 @@ namespace CoddCtTools
         private Label lblTagName;
 
         public SimulateTagDialog(string tagName, double? currentMin = null, double? currentMax = null)
+            : this($"Simulate Tag: {tagName}", $"Tag: {tagName}", currentMin, currentMax)
         {
-            InitializeComponent(tagName, currentMin, currentMax);
         }
 
-        private void InitializeComponent(string tagName, double? currentMin, double? currentMax)
+        public SimulateTagDialog(string dialogTitle, string description, double? currentMin = null, double? currentMax = null)
         {
-            this.Text = $"Simulate Tag: {tagName}";
+            InitializeComponent(dialogTitle, description, currentMin, currentMax);
+        }
+
+        private void InitializeComponent(string dialogTitle, string description, double? currentMin, double? currentMax)
+        {
+            this.Text = dialogTitle;
             this.Size = new System.Drawing.Size(400, 200);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -34,7 +39,7 @@ namespace CoddCtTools
 
             lblTagName = new Label
             {
-                Text = $"Tag: {tagName}",
+                Text = description,
                 Location = new System.Drawing.Point(10, 15),
                 Size = new System.Drawing.Size(360, 23),
                 Font = new System.Drawing.Font("Microsoft Sans Serif", 9F, System.Drawing.FontStyle.Bold)
