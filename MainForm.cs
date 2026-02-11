@@ -29,6 +29,8 @@ namespace CoddCtTools
         private System.Timers.Timer? simulationWriteTimer;
         private string? debugLogPath;
         private object logLock = new object();
+        private System.Windows.Forms.Timer? searchDebounceTimer;
+        private const int SearchDebounceMs = 150;
 
         public MainForm()
         {
@@ -384,40 +386,46 @@ namespace CoddCtTools
 
             try
             {
-                foreach (var kvp in tagValues)
+                // Dictionary para lookup O(1) em vez de FirstOrDefault O(n)
+                var rowByTagName = new Dictionary<string, DataGridViewRow>(tagsGridView.Rows.Count, StringComparer.OrdinalIgnoreCase);
+                foreach (DataGridViewRow r in tagsGridView.Rows)
                 {
-                    try
-                    {
-                        var row = tagsGridView.Rows
-                            .Cast<DataGridViewRow>()
-                            .FirstOrDefault(r => r.Cells["TagName"].Value?.ToString() == kvp.Key);
+                    var name = r.Cells["TagName"].Value?.ToString();
+                    if (!string.IsNullOrEmpty(name) && !rowByTagName.ContainsKey(name))
+                        rowByTagName[name] = r;
+                }
 
-                        if (row != null)
+                tagsGridView.SuspendLayout();
+                try
+                {
+                    foreach (var kvp in tagValues)
+                    {
+                        try
                         {
+                            if (!rowByTagName.TryGetValue(kvp.Key, out var row))
+                            {
+                                notFoundCount++;
+                                continue;
+                            }
+
                             string tagName = kvp.Key;
-                            
+
                             // Verificar se a tag está sendo simulada
                             if (tagSimulator != null && tagSimulator.IsSimulated(tagName))
                             {
-                                // Usar valor simulado
                                 try
                                 {
                                     double simulatedValue = tagSimulator.GenerateSimulatedValue(tagName);
                                     row.Cells["Value"].Value = simulatedValue.ToString();
                                     row.Cells["Quality"].Value = "Simulated";
                                     row.Cells["Timestamp"].Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-                                    
-                                    // Atualizar o texto do botão para "Parar"
                                     if (row.Cells["Simulate"] is DataGridViewButtonCell btnCell)
-                                    {
                                         btnCell.Value = "Stop";
-                                    }
                                     updatedCount++;
                                 }
                                 catch (Exception ex)
                                 {
                                     WriteDebugLog($"Error updating simulated tag {tagName}: {ex.Message}");
-                                    // Em caso de erro, usar valor real
                                     row.Cells["Value"].Value = kvp.Value.Value?.ToString() ?? "---";
                                     row.Cells["Quality"].Value = kvp.Value.Quality ?? "---";
                                     row.Cells["Timestamp"].Value = kvp.Value.Timestamp?.ToString("yyyy-MM-dd HH:mm:ss.fff") ?? "---";
@@ -426,37 +434,26 @@ namespace CoddCtTools
                             }
                             else
                             {
-                                // Usar valor real da tag
-                                string valueStr = kvp.Value.Value?.ToString() ?? "---";
-                                string qualityStr = kvp.Value.Quality ?? "---";
-                                string timestampStr = kvp.Value.Timestamp?.ToString("yyyy-MM-dd HH:mm:ss.fff") ?? "---";
-                                
-                                row.Cells["Value"].Value = valueStr;
-                                row.Cells["Quality"].Value = qualityStr;
-                                row.Cells["Timestamp"].Value = timestampStr;
-                                
-                                // Atualizar o texto do botão para "Simular"
+                                row.Cells["Value"].Value = kvp.Value.Value?.ToString() ?? "---";
+                                row.Cells["Quality"].Value = kvp.Value.Quality ?? "---";
+                                row.Cells["Timestamp"].Value = kvp.Value.Timestamp?.ToString("yyyy-MM-dd HH:mm:ss.fff") ?? "---";
                                 if (row.Cells["Simulate"] is DataGridViewButtonCell btnCell)
-                                {
                                     btnCell.Value = "Simulate";
-                                }
                                 updatedCount++;
                             }
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            notFoundCount++;
-                            WriteDebugLog($"Tag '{kvp.Key}' not found in grid");
+                            WriteDebugLog($"Error processing tag {kvp.Key}: {ex.Message}");
+                            continue;
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        WriteDebugLog($"Error processing tag {kvp.Key}: {ex.Message}");
-                        // Ignorar erros individuais e continuar com outras tags
-                        continue;
-                    }
                 }
-                
+                finally
+                {
+                    tagsGridView.ResumeLayout(false);
+                }
+
                 WriteDebugLog($"UpdateTagValues completed: {updatedCount} updated, {notFoundCount} not found");
             }
             catch (Exception ex)
@@ -469,44 +466,46 @@ namespace CoddCtTools
         {
             if (tagsGridView == null) return;
 
+            searchDebounceTimer?.Stop();
+            searchDebounceTimer ??= new System.Windows.Forms.Timer { Interval = SearchDebounceMs };
+            searchDebounceTimer.Tick -= SearchDebounceTimer_Tick;
+            searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
+            searchDebounceTimer.Start();
+        }
+
+        private void SearchDebounceTimer_Tick(object? sender, EventArgs e)
+        {
+            searchDebounceTimer?.Stop();
+            ApplyTagSearchFilter();
+        }
+
+        private void ApplyTagSearchFilter()
+        {
+            if (tagsGridView == null) return;
             string searchText = txtTagSearch?.Text?.ToLower() ?? "";
-            
-            // Filtrar as linhas do DataGridView e limpar seleção de linhas não visíveis
-            foreach (DataGridViewRow row in tagsGridView.Rows)
+
+            tagsGridView.SuspendLayout();
+            try
             {
-                bool shouldBeVisible;
-                
-                if (string.IsNullOrEmpty(searchText))
+                foreach (DataGridViewRow row in tagsGridView.Rows)
                 {
-                    shouldBeVisible = true;
-                }
-                else
-                {
-                    // Buscar tanto no TagName quanto na Description
-                    string tagName = "";
-                    string description = "";
-                    
-                    if (row.Cells["TagName"]?.Value != null)
+                    bool shouldBeVisible;
+                    if (string.IsNullOrEmpty(searchText))
+                        shouldBeVisible = true;
+                    else
                     {
-                        tagName = row.Cells["TagName"].Value.ToString()?.ToLower() ?? "";
+                        string tagName = row.Cells["TagName"]?.Value?.ToString()?.ToLower() ?? "";
+                        string description = row.Cells["Description"]?.Value?.ToString()?.ToLower() ?? "";
+                        shouldBeVisible = tagName.Contains(searchText) || description.Contains(searchText);
                     }
-                    
-                    if (row.Cells["Description"]?.Value != null)
-                    {
-                        description = row.Cells["Description"].Value.ToString()?.ToLower() ?? "";
-                    }
-                    
-                    // A linha será visível se o texto de busca estiver no nome da tag OU na descrição
-                    shouldBeVisible = tagName.Contains(searchText) || description.Contains(searchText);
+                    if (row.Selected && !shouldBeVisible)
+                        row.Selected = false;
+                    row.Visible = shouldBeVisible;
                 }
-                
-                // Se a linha está selecionada mas não deve estar visível, desmarcar
-                if (row.Selected && !shouldBeVisible)
-                {
-                    row.Selected = false;
-                }
-                
-                row.Visible = shouldBeVisible;
+            }
+            finally
+            {
+                tagsGridView.ResumeLayout(false);
             }
         }
 
@@ -583,24 +582,23 @@ namespace CoddCtTools
                     if (tagInfos != null && tagInfos.Count > 0)
                     {
                         WriteDebugLog($"Found {tagInfos.Count} tags, adding to grid...");
-                        
-                        // Limpar grid
+
+                        // Limpar e adicionar todas as tags em um único Invoke (evita travamentos)
                         tagsGridView!.Invoke((MethodInvoker)delegate
                         {
-                            tagsGridView.Rows.Clear();
-                        });
-
-                        // Adicionar tags ao grid
-                        int addedCount = 0;
-                        foreach (var tagInfo in tagInfos)
-                        {
-                            tagsGridView!.Invoke((MethodInvoker)delegate
+                            tagsGridView.SuspendLayout();
+                            try
                             {
-                                tagsGridView.Rows.Add(tagInfo.Name, tagInfo.Description ?? "", "---", "---", "---", "Simulate", "Set", "Reset");
-                            });
-                            addedCount++;
-                        }
-                        WriteDebugLog($"Added {addedCount} tags to grid");
+                                tagsGridView.Rows.Clear();
+                                foreach (var tagInfo in tagInfos)
+                                    tagsGridView.Rows.Add(tagInfo.Name, tagInfo.Description ?? "", "---", "---", "---", "Simulate", "Set", "Reset");
+                            }
+                            finally
+                            {
+                                tagsGridView.ResumeLayout(false);
+                            }
+                        });
+                        WriteDebugLog($"Added {tagInfos.Count} tags to grid");
 
                     // Iniciar atualização em tempo real
                     WriteDebugLog("Preparing to start real-time updates...");
@@ -683,72 +681,25 @@ namespace CoddCtTools
                             {
                                 try
                                 {
-                                    WriteDebugLog("Reading tag values from grid...");
-                                    
-                                    // Ler TODAS as tags da grid, independente do filtro de visibilidade
                                     var tagsInGrid = new List<string>();
                                     tagsGridView?.Invoke((MethodInvoker)delegate
                                     {
                                         foreach (DataGridViewRow row in tagsGridView.Rows)
                                         {
-                                            // Ler todas as tags, independente se estão visíveis ou não
-                                            if (row.Cells["TagName"]?.Value != null)
-                                            {
-                                                string tagName = row.Cells["TagName"].Value.ToString() ?? "";
-                                                if (!string.IsNullOrEmpty(tagName))
-                                                {
-                                                    tagsInGrid.Add(tagName);
-                                                }
-                                            }
+                                            var tagName = row.Cells["TagName"]?.Value?.ToString();
+                                            if (!string.IsNullOrEmpty(tagName))
+                                                tagsInGrid.Add(tagName);
                                         }
                                     });
-                                    
-                                    WriteDebugLog($"Found {tagsInGrid.Count} tags in grid (all tags, ignoring filter), reading values...");
-                                    
-                                    // Ler valores apenas das tags que estão na grid
-                                    var result = new Dictionary<string, PlantScadaConnector.TagValue>();
-                                    int readCount = 0;
-                                    int errorCount = 0;
-                                    
-                                    foreach (var tagName in tagsInGrid)
-                                    {
-                                        try
-                                        {
-                                            var tagValue = connector.ReadTag(tagName);
-                                            result[tagName] = tagValue;
-                                            readCount++;
-                                            
-                                            // Log a cada 500 tags para não sobrecarregar
-                                            if (readCount % 500 == 0)
-                                            {
-                                                WriteDebugLog($"Read {readCount}/{tagsInGrid.Count} tags...");
-                                            }
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            errorCount++;
-                                            result[tagName] = new PlantScadaConnector.TagValue
-                                            {
-                                                Value = null,
-                                                Quality = $"Error: {ex.Message}",
-                                                Timestamp = DateTime.Now
-                                            };
-                                            
-                                            // Log apenas os primeiros erros
-                                            if (errorCount <= 5)
-                                            {
-                                                WriteDebugLog($"Error reading tag '{tagName}': {ex.Message}");
-                                            }
-                                        }
-                                    }
-                                    
-                                    WriteDebugLog($"ReadAllTags completed: {readCount} successful, {errorCount} errors, total: {result.Count} tags");
-                                    return result;
+
+                                    if (tagsInGrid.Count == 0) return new Dictionary<string, PlantScadaConnector.TagValue>();
+
+                                    // Leitura em lote (ctListRead) - uma única chamada ao servidor
+                                    return connector.ReadTagsBatch(tagsInGrid);
                                 }
                                 catch (Exception ex)
                                 {
                                     WriteDebugLog($"Error reading tags: {ex.Message}");
-                                    WriteDebugLog($"Stack trace: {ex.StackTrace}");
                                     return null;
                                 }
                             });
@@ -1576,10 +1527,11 @@ namespace CoddCtTools
         {
             WriteDebugLog("=== Application Closing ===");
             if (!string.IsNullOrEmpty(debugLogPath))
-            {
                 WriteDebugLog($"Debug log saved to: {debugLogPath}");
-            }
-            
+
+            searchDebounceTimer?.Stop();
+            searchDebounceTimer?.Dispose();
+            searchDebounceTimer = null;
             cancellationTokenSource?.Cancel();
             StopSimulationWriteTimer();
             connector?.Disconnect();

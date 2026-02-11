@@ -16,6 +16,11 @@ namespace CoddCtTools
         private IntPtr connectionHandle = IntPtr.Zero;
         private bool isConnected = false;
         private static readonly object logLock = new object();
+
+        // Cache para leitura em lote (ctList)
+        private IntPtr tagListHandle = IntPtr.Zero;
+        private List<(string TagName, IntPtr TagHandle)> tagListCache = new List<(string, IntPtr)>();
+        private static readonly object tagListLock = new object();
         private static string? logFilePath = null;
         
         // Caminho padrão das DLLs do PlantScada
@@ -163,6 +168,25 @@ namespace CoddCtTools
         // ctGetProperty - Get a named property (usar ref UIntPtr como no projeto de referência)
         [DllImport("CtApi.dll", EntryPoint = "ctGetProperty", SetLastError = true)]
         private static extern bool ctGetProperty(IntPtr hnd, string szName, StringBuilder pData, uint dwBufferLength, ref UIntPtr dwResultLength, uint dwType);
+
+        // ctList* - Leitura em lote (mais eficiente que ctTagRead individual)
+        [DllImport("CtApi.dll", EntryPoint = "ctListNew", SetLastError = true)]
+        private static extern IntPtr ctListNew(IntPtr hCTAPI, uint dwMode);
+
+        [DllImport("CtApi.dll", EntryPoint = "ctListAdd", SetLastError = true)]
+        private static extern IntPtr ctListAdd(IntPtr hList, string sTag);
+
+        [DllImport("CtApi.dll", EntryPoint = "ctListRead", SetLastError = true)]
+        private static extern bool ctListRead(IntPtr hList, IntPtr pctOverlapped);
+
+        [DllImport("CtApi.dll", EntryPoint = "ctListData", SetLastError = true)]
+        private static extern bool ctListData(IntPtr hTag, StringBuilder pBuffer, int dwLength, uint dwMode);
+
+        [DllImport("CtApi.dll", EntryPoint = "ctListDelete", SetLastError = true)]
+        private static extern bool ctListDelete(IntPtr hTag);
+
+        [DllImport("CtApi.dll", EntryPoint = "ctListFree", SetLastError = true)]
+        private static extern bool ctListFree(IntPtr hList);
 
         // ctSetManagedBinDirectory - Especifica onde carregar dependências gerenciadas do CTAPI
         [DllImport("CtApi.dll", EntryPoint = "ctSetManagedBinDirectory", SetLastError = true)]
@@ -584,6 +608,7 @@ namespace CoddCtTools
         {
             try
             {
+                FreeTagList();
                 if (connectionHandle != IntPtr.Zero)
                 {
                     bool result = ctClose(connectionHandle);
@@ -810,6 +835,171 @@ namespace CoddCtTools
             {
                 throw new Exception($"Erro ao ler tag '{tagName}': {ex.Message}", ex);
             }
+        }
+
+        /// <summary>
+        /// Lê múltiplas tags em uma única chamada ao servidor (muito mais eficiente que ReadTag em loop).
+        /// Usa ctListNew/ctListAdd/ctListRead/ctListData para leitura em lote.
+        /// </summary>
+        public Dictionary<string, TagValue> ReadTagsBatch(IList<string> tagNames)
+        {
+            if (!IsConnected || connectionHandle == IntPtr.Zero)
+                throw new Exception("Não conectado ao servidor.");
+
+            if (tagNames == null || tagNames.Count == 0)
+                return new Dictionary<string, TagValue>();
+
+            var result = new Dictionary<string, TagValue>(tagNames.Count);
+            var timestamp = DateTime.Now;
+
+            lock (tagListLock)
+            {
+                try
+                {
+                    if (!EnsureTagList(tagNames))
+                    {
+                        // Fallback para leitura individual se ctList falhar
+                        foreach (var tagName in tagNames)
+                        {
+                            try
+                            {
+                                result[tagName] = ReadTag(tagName);
+                            }
+                            catch (Exception ex)
+                            {
+                                result[tagName] = new TagValue
+                                {
+                                    Value = null,
+                                    Quality = $"Error: {ex.Message}",
+                                    Timestamp = timestamp
+                                };
+                            }
+                        }
+                        return result;
+                    }
+
+                    // ctListRead - uma única chamada para ler todas as tags
+                    if (!ctListRead(tagListHandle, IntPtr.Zero))
+                    {
+                        int lastError = Marshal.GetLastWin32Error();
+                        WriteLog($"ctListRead falhou (erro {lastError}), usando fallback individual");
+                        FreeTagList();
+                        foreach (var tagName in tagNames)
+                        {
+                            try { result[tagName] = ReadTag(tagName); }
+                            catch (Exception ex)
+                            {
+                                result[tagName] = new TagValue { Value = null, Quality = $"Error: {ex.Message}", Timestamp = timestamp };
+                            }
+                        }
+                        return result;
+                    }
+
+                    // ctListData - obter valor de cada tag (dados já em memória local após ctListRead)
+                    var buffer = new StringBuilder(256);
+                    foreach (var (tagName, tagHandle) in tagListCache)
+                    {
+                        try
+                        {
+                            buffer.Clear();
+                            if (ctListData(tagHandle, buffer, buffer.Capacity, 0))
+                            {
+                                string valueStr = buffer.ToString().Trim('\0');
+                                object tagValue = valueStr;
+                                if (double.TryParse(valueStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double dValue))
+                                    tagValue = dValue;
+
+                                result[tagName] = new TagValue
+                                {
+                                    Value = tagValue,
+                                    Quality = "Good",
+                                    Timestamp = timestamp
+                                };
+                            }
+                            else
+                            {
+                                int err = Marshal.GetLastWin32Error();
+                                result[tagName] = new TagValue { Value = null, Quality = $"Error: {err}", Timestamp = timestamp };
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            result[tagName] = new TagValue { Value = null, Quality = $"Error: {ex.Message}", Timestamp = timestamp };
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    WriteLog($"ReadTagsBatch erro: {ex.Message}");
+                    foreach (var tagName in tagNames)
+                    {
+                        if (!result.ContainsKey(tagName))
+                            result[tagName] = new TagValue { Value = null, Quality = $"Error: {ex.Message}", Timestamp = timestamp };
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Cria ou atualiza a lista de tags para leitura em lote. Retorna true se bem-sucedido.
+        /// </summary>
+        private bool EnsureTagList(IList<string> tagNames)
+        {
+            var tagSet = new HashSet<string>(tagNames, StringComparer.OrdinalIgnoreCase);
+            var cacheSet = new HashSet<string>(tagListCache.Select(x => x.TagName), StringComparer.OrdinalIgnoreCase);
+
+            if (tagListHandle != IntPtr.Zero && tagSet.SetEquals(cacheSet))
+                return true;
+
+            FreeTagList();
+
+            tagListHandle = ctListNew(connectionHandle, 0);
+            if (tagListHandle == IntPtr.Zero)
+            {
+                WriteLog("ctListNew retornou null, leitura em lote indisponível");
+                return false;
+            }
+
+            foreach (var tagName in tagNames)
+            {
+                if (string.IsNullOrEmpty(tagName)) continue;
+                var hTag = ctListAdd(tagListHandle, tagName);
+                if (hTag != IntPtr.Zero)
+                    tagListCache.Add((tagName, hTag));
+            }
+
+            if (tagListCache.Count == 0)
+            {
+                ctListFree(tagListHandle);
+                tagListHandle = IntPtr.Zero;
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Libera a lista de tags usada para leitura em lote.
+        /// </summary>
+        private void FreeTagList()
+        {
+            if (tagListHandle != IntPtr.Zero)
+            {
+                try
+                {
+                    foreach (var (_, hTag) in tagListCache)
+                    {
+                        try { ctListDelete(hTag); } catch { }
+                    }
+                    tagListCache.Clear();
+                    ctListFree(tagListHandle);
+                }
+                catch { }
+                tagListHandle = IntPtr.Zero;
+            }
+            tagListCache.Clear();
         }
 
         /// <summary>
