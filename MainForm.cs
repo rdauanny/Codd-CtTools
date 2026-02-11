@@ -82,6 +82,13 @@ namespace CoddCtTools
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.MaximizeBox = true;
 
+            // Ícone da janela (header)
+            string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "logo.ico");
+            if (File.Exists(iconPath))
+            {
+                try { this.Icon = new Icon(iconPath); } catch { }
+            }
+
             // Painel de Login
             loginPanel = new Panel
             {

@@ -16,6 +16,8 @@
     <Content Include="libs\CtApi\*.dll" Condition="Exists('libs\CtApi\CtApi.dll')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Ícone do app (header da janela) -->
+    <Content Include="Resources\logo.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
