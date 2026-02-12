@@ -31,6 +31,11 @@ namespace CoddCtTools
         private object logLock = new object();
         private System.Windows.Forms.Timer? searchDebounceTimer;
         private const int SearchDebounceMs = 150;
+        private readonly Dictionary<string, string?> _columnFilters = new();
+        private readonly Dictionary<string, string> _columnHeaderBaseText = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly string FilterIndicator = " ▾";
+        private static readonly HashSet<string> FilterableColumns = new(StringComparer.OrdinalIgnoreCase)
+            { "TagName", "Description", "Value", "Quality", "Timestamp" };
 
         public MainForm()
         {
@@ -337,9 +342,18 @@ namespace CoddCtTools
             tagsGridView.Columns["Simulate"].FillWeight = 8;
             tagsGridView.Columns["Set"].FillWeight = 6;
             tagsGridView.Columns["Reset"].FillWeight = 6;
-            
+
+            foreach (string colName in FilterableColumns)
+            {
+                if (tagsGridView.Columns.Contains(colName))
+                    _columnHeaderBaseText[colName] = tagsGridView.Columns[colName].HeaderText;
+            }
+
             // Handler para cliques em botões
             tagsGridView.CellClick += TagsGridView_CellClick;
+
+            // Filtro estilo Excel: clique no cabeçalho da coluna
+            tagsGridView.ColumnHeaderMouseClick += TagsGridView_ColumnHeaderMouseClick;
 
             // Adicionar menu de contexto (botão direito)
             var contextMenu = new ContextMenuStrip();
@@ -462,6 +476,10 @@ namespace CoddCtTools
                 }
 
                 WriteDebugLog($"UpdateTagValues completed: {updatedCount} updated, {notFoundCount} not found");
+
+                // Reaplicar filtros (ex.: Quality muda de Good para Bad)
+                if (_columnFilters.Count > 0)
+                    ApplyAllFilters();
             }
             catch (Exception ex)
             {
@@ -486,7 +504,36 @@ namespace CoddCtTools
             ApplyTagSearchFilter();
         }
 
-        private void ApplyTagSearchFilter()
+        private void TagsGridView_ColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (tagsGridView == null || e.ColumnIndex < 0) return;
+            var col = tagsGridView.Columns[e.ColumnIndex];
+            if (col == null || !FilterableColumns.Contains(col.Name)) return;
+
+            if (!_columnHeaderBaseText.ContainsKey(col.Name))
+                _columnHeaderBaseText[col.Name] = col.HeaderText.Replace(FilterIndicator, "").TrimEnd();
+
+            _columnFilters.TryGetValue(col.Name, out var currentFilter);
+            var newFilter = ColumnFilterPopup.Show(tagsGridView, col, currentFilter);
+            _columnFilters[col.Name] = newFilter;
+            ApplyAllFilters();
+            RefreshColumnHeaderIndicators();
+        }
+
+        private void RefreshColumnHeaderIndicators()
+        {
+            if (tagsGridView == null) return;
+            foreach (string colName in FilterableColumns)
+            {
+                if (!tagsGridView.Columns.Contains(colName) || !_columnHeaderBaseText.TryGetValue(colName, out var baseText))
+                    continue;
+                var col = tagsGridView.Columns[colName];
+                var isFiltered = _columnFilters.TryGetValue(colName, out var val) && val != null;
+                col.HeaderText = baseText + (isFiltered ? FilterIndicator : "");
+            }
+        }
+
+        private void ApplyAllFilters()
         {
             if (tagsGridView == null) return;
             string searchText = txtTagSearch?.Text?.ToLower() ?? "";
@@ -496,15 +543,32 @@ namespace CoddCtTools
             {
                 foreach (DataGridViewRow row in tagsGridView.Rows)
                 {
-                    bool shouldBeVisible;
-                    if (string.IsNullOrEmpty(searchText))
-                        shouldBeVisible = true;
-                    else
+                    bool shouldBeVisible = true;
+
+                    // Filtro de busca (TagName e Description)
+                    if (!string.IsNullOrEmpty(searchText))
                     {
                         string tagName = row.Cells["TagName"]?.Value?.ToString()?.ToLower() ?? "";
                         string description = row.Cells["Description"]?.Value?.ToString()?.ToLower() ?? "";
-                        shouldBeVisible = tagName.Contains(searchText) || description.Contains(searchText);
+                        if (!tagName.Contains(searchText) && !description.Contains(searchText))
+                            shouldBeVisible = false;
                     }
+
+                    // Filtro por coluna (estilo Excel - contém)
+                    if (shouldBeVisible && _columnFilters.Count > 0)
+                    {
+                        foreach (var kvp in _columnFilters)
+                        {
+                            if (string.IsNullOrEmpty(kvp.Value)) continue;
+                            var cellVal = row.Cells[kvp.Key]?.Value?.ToString() ?? "";
+                            if (!cellVal.Contains(kvp.Value, StringComparison.OrdinalIgnoreCase))
+                            {
+                                shouldBeVisible = false;
+                                break;
+                            }
+                        }
+                    }
+
                     if (row.Selected && !shouldBeVisible)
                         row.Selected = false;
                     row.Visible = shouldBeVisible;
@@ -514,6 +578,11 @@ namespace CoddCtTools
             {
                 tagsGridView.ResumeLayout(false);
             }
+        }
+
+        private void ApplyTagSearchFilter()
+        {
+            ApplyAllFilters();
         }
 
         private async void BtnConnect_Click(object? sender, EventArgs e)
@@ -596,9 +665,11 @@ namespace CoddCtTools
                             tagsGridView.SuspendLayout();
                             try
                             {
+                                _columnFilters.Clear();
                                 tagsGridView.Rows.Clear();
                                 foreach (var tagInfo in tagInfos)
                                     tagsGridView.Rows.Add(tagInfo.Name, tagInfo.Description ?? "", "---", "---", "---", "Simulate", "Set", "Reset");
+                                RefreshColumnHeaderIndicators();
                             }
                             finally
                             {
